@@ -1,1 +1,1 @@
-# Eearth Tamagotchi
+# Earth Tamagotchi
