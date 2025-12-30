@@ -1,0 +1,14 @@
+jupyter
+jupyterlab
+notebook
+pandas
+numpy
+hopsworks[python,great-expectations]==4.6.*
+requests
+jsons
+scikit-learn
+matplotlib
+seaborn
+python-dotenv
+pyarrow
+xgboost

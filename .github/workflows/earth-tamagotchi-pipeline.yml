@@ -1,0 +1,66 @@
+name: earth-tamagotchi-pipeline
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run on 1st and 16th of each month at 6:00 AM UTC (approximately every 15 days)
+    - cron: '0 6 1,16 * *'
+
+jobs:
+  run_pipelines:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+
+    steps:
+      - name: checkout repo content
+        uses: actions/checkout@v4
+
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          
+      - name: install python packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: execute feature pipeline
+        env:
+          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+        run: |
+          echo "Running feature pipeline to update CO2 and temperature data..."
+          jupyter nbconvert --to notebook --execute notebooks/feature_pipeline.ipynb --stdout
+
+      - name: execute batch inference pipeline
+        env:
+          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+        run: |
+          echo "Running batch inference to generate CO2 and temperature forecasts..."
+          jupyter nbconvert --to notebook --execute notebooks/batch_inference.ipynb --stdout
+
+      - name: Archive generated plots
+        if: always()
+        run: |
+          mkdir -p artifacts/plots
+          # Copy any generated plots if they exist
+          if [ -f "notebooks/co2_model/images/co2_hindcast.png" ]; then
+            cp notebooks/co2_model/images/co2_hindcast.png artifacts/plots/co2_hindcast.png
+          fi
+          if [ -f "notebooks/temp_model/images/temp_hindcast.png" ]; then
+            cp notebooks/temp_model/images/temp_hindcast.png artifacts/plots/temp_hindcast.png
+          fi
+          echo "Plots archived"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: earth-tamagotchi-plots
+          path: artifacts/plots
+          if-no-files-found: ignore
+          retention-days: 30
+
