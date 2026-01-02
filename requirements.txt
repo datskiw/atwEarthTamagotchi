@@ -12,3 +12,5 @@ seaborn
 python-dotenv
 pyarrow
 xgboost
+ipywidgets
+streamlit
