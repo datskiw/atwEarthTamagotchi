@@ -328,14 +328,27 @@ def compute_ehi(co2_forecast, temp_forecast):
     }
 
 def get_mood_image_path(ehi, trend):
-    """Get image path based on EHI and trend. Returns None if image doesn't exist."""
+    """
+    Get image path based on EHI and trend. Returns None if image doesn't exist.
+    
+    Mapping:
+    - improving + ehi >= 70: excellent_improving.png
+    - improving + ehi >= 50: good_improving.png
+    - improving + ehi < 50: fair_improving.png
+    - worsening + ehi >= 70: good_worsening.png
+    - worsening + ehi >= 50: fair_worsening.png
+    - worsening + ehi < 50: poor_worsening.png
+    - stable + ehi >= 70: excellent_stable.png
+    - stable + ehi >= 50: good_stable.png
+    - stable + ehi < 50: fair_stable.png
+    """
     import os
     base_path = "data/images"
     
     if ehi is None:
         return None
     
-    # Map mood to image filename
+    # Map mood to image filename based on EHI and trend
     if trend == "improving":
         if ehi >= 70:
             filename = "excellent_improving.png"
@@ -363,32 +376,32 @@ def get_mood_image_path(ehi, trend):
         return image_path
     return None
 
-def get_mood_emoji_and_color(ehi, trend):
-    """Get emoji and color based on EHI and trend"""
+def get_mood_color_and_text(ehi, trend):
+    """Get color and mood text based on EHI and trend"""
     if ehi is None:
-        return "❓", "gray", "Unknown"
+        return "gray", "Unknown"
     
     if trend == "improving":
         if ehi >= 70:
-            return "😊", "green", "Excellent & Improving"
+            return "green", "Excellent & Improving"
         elif ehi >= 50:
-            return "🙂", "lightgreen", "Good & Improving"
+            return "lightgreen", "Good & Improving"
         else:
-            return "😐", "yellow", "Fair & Improving"
+            return "yellow", "Fair & Improving"
     elif trend == "worsening":
         if ehi >= 70:
-            return "😟", "orange", "Good but Worsening"
+            return "orange", "Good but Worsening"
         elif ehi >= 50:
-            return "😰", "darkorange", "Fair but Worsening"
+            return "darkorange", "Fair but Worsening"
         else:
-            return "😢", "red", "Poor & Worsening"
+            return "red", "Poor & Worsening"
     else:  # stable
         if ehi >= 70:
-            return "😌", "green", "Excellent & Stable"
+            return "green", "Excellent & Stable"
         elif ehi >= 50:
-            return "😐", "yellow", "Good & Stable"
+            return "yellow", "Good & Stable"
         else:
-            return "😔", "orange", "Fair & Stable"
+            return "orange", "Fair & Stable"
 
 # Main app
 if api_key:
@@ -415,16 +428,16 @@ if api_key:
             
             # Compute EHI
             ehi, trend, ehi_details = compute_ehi(co2_forecast, temp_forecast)
-            emoji, color, mood_text = get_mood_emoji_and_color(ehi, trend)
+            color, mood_text = get_mood_color_and_text(ehi, trend)
             image_path = get_mood_image_path(ehi, trend)
             
             # Display Earth Tamagotchi
             col1, col2, col3 = st.columns([1, 2, 1])
             
             with col2:
-                # Use image if available, otherwise fall back to emoji
+                # Display the Earth Tamagotchi image
                 if image_path:
-                    # Center the image using CSS to match emoji positioning
+                    # Center the image using CSS
                     import base64
                     with open(image_path, "rb") as img_file:
                         img_data = base64.b64encode(img_file.read()).decode()
@@ -433,7 +446,7 @@ if api_key:
                         unsafe_allow_html=True
                     )
                 else:
-                    st.markdown(f"<div style='text-align: center; font-size: 120px;'>{emoji}</div>", unsafe_allow_html=True)
+                    st.warning("⚠️ Image not found for current mood")
                 st.markdown(f"<div style='text-align: center; font-size: 24px; font-weight: bold; color: {color};'>{mood_text}</div>", unsafe_allow_html=True)
                 
                 if ehi is not None:
