@@ -12,37 +12,29 @@ warnings.filterwarnings("ignore")
 
 # Page config
 st.set_page_config(
-    page_title="Earth Tamagotchi Dashboard",
+    page_title="Earth Tamagotchi",
     page_icon="🌍",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # Title
-st.title("🌍 Earth Tamagotchi Dashboard")
+st.title("🌍 Earth Tamagotchi")
 st.markdown("**Global CO₂ and Temperature Anomaly Forecasting**")
+# Load API key from Streamlit secrets (for deployment) or environment variable (for local dev)
+# For Streamlit Cloud: Add HOPSWORKS_API_KEY in Settings > Secrets
+# For local: Set HOPSWORKS_API_KEY in .env file or environment
+load_dotenv()
 
-# Sidebar for configuration
-with st.sidebar:
-    st.header("⚙️ Configuration")
-    
-    # API Key input
-    api_key = st.text_input(
-        "Hopsworks API Key",
-        type="password",
-        help="Enter your Hopsworks API key. You can also set it as HOPSWORKS_API_KEY environment variable."
-    )
-    
-    if not api_key:
-        # Try to load from environment
-        load_dotenv()
-        api_key = os.getenv("HOPSWORKS_API_KEY")
-    
-    if api_key:
-        st.success("✅ API Key configured")
-    else:
-        st.warning("⚠️ Please enter your Hopsworks API key")
-        st.stop()
+# Try Streamlit secrets first (for deployed apps), then environment variable
+try:
+    api_key = st.secrets.get("HOPSWORKS_API_KEY") or os.getenv("HOPSWORKS_API_KEY")
+except:
+    api_key = os.getenv("HOPSWORKS_API_KEY")
+
+if not api_key:
+    st.error("⚠️ Hopsworks API key not found. Please configure it in Streamlit secrets or environment variables.")
+    st.stop()
 
 @st.cache_resource(ttl=3600)  # Cache for 1 hour
 def connect_to_hopsworks():
@@ -350,23 +342,23 @@ def get_mood_image_path(ehi, trend):
     
     # Map mood to image filename based on EHI and trend
     if trend == "improving":
-        if ehi >= 70:
+        if ehi >= 75:
             filename = "excellent_improving.png"
-        elif ehi >= 50:
+        elif ehi >= 25:
             filename = "good_improving.png"
         else:
             filename = "fair_improving.png"
     elif trend == "worsening":
-        if ehi >= 70:
+        if ehi >= 75:
             filename = "good_worsening.png"
-        elif ehi >= 50:
+        elif ehi >= 25:
             filename = "fair_worsening.png"
         else:
             filename = "poor_worsening.png"
     else:  # stable
-        if ehi >= 70:
+        if ehi >= 75:
             filename = "excellent_stable.png"
-        elif ehi >= 50:
+        elif ehi >= 25:
             filename = "good_stable.png"
         else:
             filename = "fair_stable.png"
@@ -376,32 +368,65 @@ def get_mood_image_path(ehi, trend):
         return image_path
     return None
 
-def get_mood_color_and_text(ehi, trend):
-    """Get color and mood text based on EHI and trend"""
+def get_mood_level(ehi):
+    """Get mood level (Excellent/Good/Fair) based on EHI"""
     if ehi is None:
-        return "gray", "Unknown"
+        return "Unknown"
+    if ehi >= 75:
+        return "Good"
+    elif ehi >= 25:
+        return "Fair"
+    else:
+        return "Poor"
+
+def get_mood_color(ehi):
+    """Get color for mood text based on EHI level"""
+    if ehi is None:
+        return "gray"
+    if ehi >= 75:
+        return "green"
+    elif ehi >= 25:
+        return "yellow"
+    else:
+        return "orange"
+
+def get_trend_color(ehi, trend):
+    """Get color for trend text based on EHI and trend"""
+    if ehi is None:
+        return "gray"
     
     if trend == "improving":
-        if ehi >= 70:
-            return "green", "Excellent & Improving"
-        elif ehi >= 50:
-            return "lightgreen", "Good & Improving"
+        if ehi >= 75:
+            return "green"
+        elif ehi >= 25:
+            return "lightgreen"
         else:
-            return "yellow", "Fair & Improving"
+            return "yellow"
     elif trend == "worsening":
-        if ehi >= 70:
-            return "orange", "Good but Worsening"
-        elif ehi >= 50:
-            return "darkorange", "Fair but Worsening"
+        if ehi >= 75:
+            return "orange"
+        elif ehi >= 25:
+            return "darkorange"
         else:
-            return "red", "Poor & Worsening"
+            return "red"
     else:  # stable
-        if ehi >= 70:
-            return "green", "Excellent & Stable"
-        elif ehi >= 50:
-            return "yellow", "Good & Stable"
+        if ehi >= 75:
+            return "green"
+        elif ehi >= 25:
+            return "yellow"
         else:
-            return "orange", "Fair & Stable"
+            return "orange"
+
+def get_health_bar_color(ehi):
+    """Get color for health bar: red (0-33), yellow (34-66), green (67-100)"""
+    if ehi is None:
+        return "#808080"  # gray
+    if ehi < 33:
+        return "#ff4444"  # red
+    elif ehi < 67:
+        return "#ffaa00"  # yellow/orange
+    else:
+        return "#44ff44"  # green
 
 # Main app
 if api_key:
@@ -418,8 +443,7 @@ if api_key:
         ])
         
         with tab1:
-            st.header("🌍 Earth Tamagotchi")
-            st.markdown("**Earth Health Index (EHI) Dashboard**")
+
             
             # Get forecasts and latest actuals
             co2_forecast, co2_forecast_date = get_co2_forecast(fs)
@@ -428,8 +452,11 @@ if api_key:
             
             # Compute EHI
             ehi, trend, ehi_details = compute_ehi(co2_forecast, temp_forecast)
-            color, mood_text = get_mood_color_and_text(ehi, trend)
             image_path = get_mood_image_path(ehi, trend)
+            mood_level = get_mood_level(ehi)
+            mood_color = get_mood_color(ehi)
+            trend_color = get_trend_color(ehi, trend)
+            health_color = get_health_bar_color(ehi)
             
             # Display Earth Tamagotchi
             col1, col2, col3 = st.columns([1, 2, 1])
@@ -447,31 +474,49 @@ if api_key:
                     )
                 else:
                     st.warning("⚠️ Image not found for current mood")
-                st.markdown(f"<div style='text-align: center; font-size: 24px; font-weight: bold; color: {color};'>{mood_text}</div>", unsafe_allow_html=True)
                 
+                # Display Mood and Trend separately with colors
                 if ehi is not None:
-                    st.markdown(f"<div style='text-align: center; font-size: 48px; font-weight: bold; margin: 20px 0;'>EHI: {ehi:.1f}/100</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='text-align: center; font-size: 24px; font-weight: bold; margin-top: -10px; color: {mood_color};'>Mood: {mood_level}</div>", unsafe_allow_html=True)
                     
-                    # Progress bar for EHI
-                    st.progress(ehi / 100)
+                    trend_display = trend.capitalize()
+                    st.markdown(f"<div style='text-align: center; font-size: 24px; font-weight: bold; color: {trend_color};'>Trend: {trend_display}</div>", unsafe_allow_html=True)
                     
-                    # Trend indicator
-                    trend_arrow = "📈" if trend == "improving" else "📉" if trend == "worsening" else "➡️"
-                    st.markdown(f"<div style='text-align: center; font-size: 20px;'>Trend: {trend_arrow} {trend.capitalize()}</div>", unsafe_allow_html=True)
+                    # Health bar with colored progress (text closer to bar)
+                    st.markdown(f"<div style='text-align: center; font-size: 32px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;'>Overall Health</div>", unsafe_allow_html=True)
+                    
+                    # Enhanced colored progress bar with border and shadow
+                    progress_html = f"""
+                    <div style="text-align: center; margin: 5px 0 20px 0;">
+                        <div style="background-color: #e0e0e0; border-radius: 15px; height: 40px; width: 100%; position: relative; margin: 0 auto; border: 3px solid #333; box-shadow: 0 4px 8px rgba(0,0,0,0.2), inset 0 2px 4px rgba(0,0,0,0.1); overflow: hidden;">
+                            <div style="background: linear-gradient(90deg, {health_color} 0%, {health_color}dd 100%); border-radius: 12px; height: 34px; width: {ehi}%; transition: width 0.5s ease; box-shadow: inset 0 2px 4px rgba(255,255,255,0.3);"></div>
+                            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-weight: bold; font-size: 18px; color: #333; text-shadow: 1px 1px 2px rgba(255,255,255,0.8);">
+                                {ehi:.1f}%
+                            </div>
+                        </div>
+                    </div>
+                    """
+                    st.markdown(progress_html, unsafe_allow_html=True)
             
             # Latest values
             st.markdown("---")
             st.subheader("📊 Latest Observed Values")
             
             if latest_actuals:
-                col1, col2 = st.columns(2)
+                col1, col2, col3 = st.columns(3)
                 with col1:
+                    st.metric(
+                        "Earth Health Index (EHI) ",
+                        f"{ehi:.2f} EHI score",
+                        help=f"Last updated: {pd.to_datetime(latest_actuals['co2_date']).strftime('%Y-%m-%d')}"
+                    )
+                with col2:
                     st.metric(
                         "CO₂ Concentration",
                         f"{latest_actuals['co2_value']:.2f} ppm",
                         help=f"Last updated: {pd.to_datetime(latest_actuals['co2_date']).strftime('%Y-%m-%d')}"
                     )
-                with col2:
+                with col3:
                     st.metric(
                         "Temperature Anomaly",
                         f"{latest_actuals['temp_value']:.2f} °C",
@@ -485,77 +530,68 @@ if api_key:
                 
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    st.metric("CO₂ (24mo ahead)", f"{ehi_details['co2_predicted']:.2f} ppm")
+                    co2_start = co2_forecast['predicted_co2'].iloc[0]
+                    co2_end = co2_forecast['predicted_co2'].iloc[-1]
+                    co2_change = co2_end - co2_start
+                    st.metric("CO₂ 24mo ahead prediction", f"{ehi_details['co2_predicted']:.2f} ppm",
+                                                           f"{co2_change:+.2f} ppm over 24 months")
                 with col2:
                     st.metric("CO₂ Normalized", f"{ehi_details['co2_normalized']:.3f}")
                 with col3:
-                    st.metric("Temp (24mo ahead)", f"{ehi_details['temp_predicted']:.2f} °C")
+                    temp_start = temp_forecast['predicted_temp_anomaly'].iloc[0]
+                    temp_end = temp_forecast['predicted_temp_anomaly'].iloc[-1]
+                    temp_change = temp_end - temp_start
+                    st.metric("Temp 24mo ahead prediction", f"{ehi_details['temp_predicted']:.2f} °C",
+                                                            f"{temp_change:+.2f} °C over 24 months")
                 with col4:
                     st.metric("Temp Normalized", f"{ehi_details['temp_normalized']:.3f}")
                 
                 # Show change rates
-                st.markdown("**Change Rates:**")
+                st.markdown("**EHI Components Change Rates:**")
                 col1, col2 = st.columns(2)
                 with col1:
                     st.metric("CO₂ Change Rate", f"{ehi_details['co2_change_rate']:.3f} ppm/month")
                 with col2:
                     st.metric("Temp Change Rate", f"{ehi_details['temp_change_rate']:.4f} °C/month")
                 
-                # Explanation
-                with st.expander("ℹ️ How is EHI calculated?"):
-                    st.markdown("""
-                    **Earth Health Index (EHI)** uses a normalization formula:
-                    
-                    ```
-                    EHI = 1 - [ ( (CO₂ - CO₂_min) / (CO₂_max - CO₂_min) ) 
-                              + ( (Temp - Temp_min) / (Temp_max - Temp_min) ) ] / 2
-                    ```
-                    
-                    **Parameters:**
-                    - CO₂ bounds: 280 ppm (pre-industrial) to 500 ppm (dangerous threshold)
-                    - Temperature bounds: 0°C (baseline) to 2°C (dangerous threshold)
-                    - Uses predicted values at **end of 24-month forecast** (future trajectory)
-                    
-                    **Interpretation:**
-                    - **EHI = 100**: Best possible (CO₂ = 280 ppm, Temp = 0°C)
-                    - **EHI = 50**: Midpoint (CO₂ = 390 ppm, Temp = 1°C)
-                    - **EHI = 0**: Worst possible (CO₂ = 500 ppm, Temp = 2°C)
-                    
-                    **Trend**: Compares first 6 months vs last 6 months of forecast
-                    - **Improving**: Decreasing CO₂ and/or temperature trends
-                    - **Stable**: Minimal change
-                    - **Worsening**: Increasing CO₂ and/or temperature trends
-                    
-                    **Mood** combines EHI score with trend direction.
-                    """)
+            # EHI Explanation Section
+            st.markdown("---")
+            st.subheader("📖 About EHI")
+            st.markdown("""
+            The **Earth Health Index (EHI)** is a metric that measures the predicted health of our planet 
+            based on CO₂ concentration and temperature anomaly forecasts. It uses a normalization formula to combine both 
+            factors into a single score from 0-100, where higher values indicate better planetary health.
+            
+            **Formula:**
+            ```
+            EHI = 1 - [ ( (CO₂ - CO₂_min) / (CO₂_max - CO₂_min) ) 
+                      + ( (Temp - Temp_min) / (Temp_max - Temp_min) ) ] / 2
+            ```
+            
+            **Parameters:**
+            - **CO₂ bounds**: 280 ppm (pre-industrial baseline) to 500 ppm (dangerous threshold)
+            - **Temperature bounds**: 0°C (baseline anomaly) to 2°C (dangerous threshold)
+            - Uses predicted values at **end of 24-month forecast** to reflect future trajectory
+            
+            **Interpretation:**
+            - **EHI = 100**: Best possible (CO₂ = 280 ppm, Temp = 0°C anomaly)
+            - **EHI = 50**: Midpoint (CO₂ = 390 ppm, Temp = 1°C anomaly)
+            - **EHI = 0**: Worst possible (CO₂ = 500 ppm, Temp = 2°C anomaly)
+            
+            **Mood Levels:**
+            - **Good** (EHI ≥ 75): Planet is in good health
+            - **Fair** (25 ≤ EHI < 75): Planet health is acceptable
+            - **Poor** (EHI < 25): Planet health needs attention
+            
+            **Trend Analysis:**
+            The trend compares the first 6 months vs last 6 months of the 24-month forecast:
+            - **Improving**: Decreasing CO₂ and/or temperature trends
+            - **Stable**: Minimal change in both metrics
+            - **Worsening**: Increasing CO₂ and/or temperature trends
+            """)
             
             # Forecast summary
             if len(co2_forecast) > 0 and len(temp_forecast) > 0:
-                st.markdown("---")
-                st.subheader("📈 24-Month Forecast Summary")
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    co2_start = co2_forecast['predicted_co2'].iloc[0]
-                    co2_end = co2_forecast['predicted_co2'].iloc[-1]
-                    co2_change = co2_end - co2_start
-                    st.metric(
-                        "CO₂ Forecast",
-                        f"{co2_end:.2f} ppm",
-                        f"{co2_change:+.2f} ppm over 24 months"
-                    )
-                
-                with col2:
-                    temp_start = temp_forecast['predicted_temp_anomaly'].iloc[0]
-                    temp_end = temp_forecast['predicted_temp_anomaly'].iloc[-1]
-                    temp_change = temp_end - temp_start
-                    st.metric(
-                        "Temperature Forecast",
-                        f"{temp_end:.2f} °C",
-                        f"{temp_change:+.2f} °C over 24 months"
-                    )
-                
-                # EHI Forecast Graph
                 st.markdown("---")
                 st.subheader("📊 EHI Forecast: 24-Month Trajectory")
                 
@@ -572,9 +608,9 @@ if api_key:
                         markersize=6
                     )
                     # Add horizontal reference lines
-                    ax.axhline(y=70, color='green', linestyle='--', alpha=0.3, label='Excellent (70)')
-                    ax.axhline(y=50, color='yellow', linestyle='--', alpha=0.3, label='Good (50)')
-                    ax.axhline(y=30, color='orange', linestyle='--', alpha=0.3, label='Fair (30)')
+                    ax.axhline(y=75, color='green', linestyle='--', alpha=0.3, label='Good (70)')
+                    ax.axhline(y=50, color='orange', linestyle='--', alpha=0.3, label='Fair (50)')
+                    ax.axhline(y=25, color='red', linestyle='--', alpha=0.3, label='Poor (30)')
                     ax.set_xlabel('Date', fontsize=12)
                     ax.set_ylabel('Earth Health Index (EHI)', fontsize=12)
                     ax.set_title('EHI Forecast: Predicted Earth Health Over 24 Months', fontsize=14, fontweight='bold')
